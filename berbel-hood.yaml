@@ -1,0 +1,158 @@
+# Example ESPHome configuration for the Berbel hood remote emulator.
+#
+# Port of https://github.com/tfohlmeister/berbel-remote
+# The ESP32 acts as a BLE peripheral that the hood pairs to and controls.
+#
+# Requirements:
+#   * ESP32 (any variant with BLE)
+#   * ESP-IDF framework (NimBLE peripheral role)
+#   * No other ESP32 BLE component (no esp32_ble_tracker, no
+#     esp32_ble_server, no ble_client) -- this component initialises the
+#     NimBLE host stack itself.
+#
+# Pairing: power on the ESP32 once before the hood; the hood scans for the
+# spoofed Texas Instruments MAC and triggers Legacy Just-Works pairing.
+
+substitutions:
+  name: berbel-hood
+  friendly_name: Berbel Hood
+
+esphome:
+  name: ${name}
+  friendly_name: ${friendly_name}
+
+esp32:
+  board: esp32dev
+  framework:
+    type: esp-idf
+
+external_components:
+  - source:
+      type: local
+      path: components
+    components: [berbel_remote]
+
+logger:
+api:
+ota:
+  - platform: esphome
+
+wifi:
+  ssid: !secret wifi_ssid
+  password: !secret wifi_password
+
+# ---------------------------------------------------------------------------
+# The remote itself
+# ---------------------------------------------------------------------------
+berbel_remote:
+  id: berbel
+  # Texas Instruments OUI (one of the two the hood accepts). Pick a unique
+  # suffix per device so multiple emulators don't collide on the same bus.
+  mac_oui: ti_1            # alternatives: ti_2, or "AA:BB:CC"
+  mac_suffix: "A1:B2:C3"
+
+  on_connect:
+    - logger.log: "Hood paired & connected"
+  on_disconnect:
+    - logger.log: "Hood disconnected"
+  on_status:
+    # `x` is a const BerbelStatus & containing the decoded packet.
+    - lambda: |-
+        id(fan_1).publish_state(x.fan_1);
+        id(fan_2).publish_state(x.fan_2);
+        id(fan_3).publish_state(x.fan_3);
+        id(fan_p).publish_state(x.fan_p);
+        id(light_up).publish_state(x.light_up);
+        id(light_down).publish_state(x.light_down);
+        id(cover_up).publish_state(x.cover_moving_up);
+        id(cover_down).publish_state(x.cover_moving_down);
+        id(afterrun).publish_state(x.afterrun);
+
+# ---------------------------------------------------------------------------
+# Hood state mirrored as binary sensors -> exposed to Home Assistant
+# ---------------------------------------------------------------------------
+binary_sensor:
+  - platform: template
+    id: fan_1
+    name: "Fan Level 1"
+  - platform: template
+    id: fan_2
+    name: "Fan Level 2"
+  - platform: template
+    id: fan_3
+    name: "Fan Level 3"
+  - platform: template
+    id: fan_p
+    name: "Fan Power"
+  - platform: template
+    id: light_up
+    name: "Upper Light"
+  - platform: template
+    id: light_down
+    name: "Effect Light"
+  - platform: template
+    id: cover_up
+    name: "Cover Moving Up"
+  - platform: template
+    id: cover_down
+    name: "Cover Moving Down"
+  - platform: template
+    id: afterrun
+    name: "Afterrun Timer"
+
+# ---------------------------------------------------------------------------
+# All 13 buttons as template buttons (press in HA -> sends the BLE notify)
+# ---------------------------------------------------------------------------
+button:
+  - platform: template
+    name: "Power"
+    on_press:
+      - berbel_remote.send_button: { id: berbel, button: power }
+  - platform: template
+    name: "Fan 1"
+    on_press:
+      - berbel_remote.send_button: { id: berbel, button: fan_1 }
+  - platform: template
+    name: "Fan 2"
+    on_press:
+      - berbel_remote.send_button: { id: berbel, button: fan_2 }
+  - platform: template
+    name: "Fan 3"
+    on_press:
+      - berbel_remote.send_button: { id: berbel, button: fan_3 }
+  - platform: template
+    name: "Fan Power"
+    on_press:
+      - berbel_remote.send_button: { id: berbel, button: fan_p }
+  - platform: template
+    name: "Light Up"
+    on_press:
+      - berbel_remote.send_button: { id: berbel, button: light_up }
+  - platform: template
+    name: "Light Down"
+    on_press:
+      - berbel_remote.send_button: { id: berbel, button: light_down }
+  - platform: template
+    name: "Move Up"
+    on_press:
+      - berbel_remote.send_button: { id: berbel, button: move_up }
+  - platform: template
+    name: "Move Down"
+    on_press:
+      - berbel_remote.send_button: { id: berbel, button: move_down }
+  - platform: template
+    name: "Timer"
+    on_press:
+      - berbel_remote.send_button: { id: berbel, button: timer }
+  - platform: template
+    name: "Play"
+    on_press:
+      - berbel_remote.send_button: { id: berbel, button: play }
+  - platform: template
+    name: "Reload"
+    on_press:
+      - berbel_remote.send_button: { id: berbel, button: reload }
+  - platform: template
+    name: "Record"
+    on_press:
+      - berbel_remote.send_button: { id: berbel, button: record }
