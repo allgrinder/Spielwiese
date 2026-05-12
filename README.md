@@ -39,15 +39,27 @@ berbel-hood.yaml           Example device configuration
 
 ## Quick start
 
-1. Copy this repository (or just the `components/` folder) next to your
-   ESPHome configuration.
-2. Use the bundled `berbel-hood.yaml` as a starting point. Important
+Reference the component straight from this repo in your ESPHome YAML –
+no local checkout needed:
+
+```yaml
+external_components:
+  - source:
+      type: git
+      url: https://github.com/allgrinder/Spielwiese
+      ref: claude/esphome-berbel-remote-C0XhC
+    components: [berbel_remote]
+```
+
+Then:
+
+1. Use the bundled `berbel-hood.yaml` as a starting point. Important
    knobs:
    - `mac_oui`: `ti_1` (`88:01:F9`, default) or `ti_2` (`30:AF:7E`).
    - `mac_suffix`: three hex octets, pick something unique per device.
-3. Flash the ESP32 and let it power up *before* the hood, so the hood
+2. Flash the ESP32 and let it power up *before* the hood, so the hood
    discovers the spoofed remote on its first scan and pairs.
-4. Reboot the hood once after the first flash if it was previously
+3. Reboot the hood once after the first flash if it was previously
    bonded to a real remote.
 
 ## Configuration reference
