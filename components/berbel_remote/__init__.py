@@ -152,7 +152,10 @@ SEND_BUTTON_SCHEMA = cv.Schema(
 
 
 @automation.register_action(
-    "berbel_remote.send_button", SendButtonAction, SEND_BUTTON_SCHEMA
+    "berbel_remote.send_button",
+    SendButtonAction,
+    SEND_BUTTON_SCHEMA,
+    synchronous=True,
 )
 async def send_button_to_code(config, action_id, template_arg, args):
     parent = await cg.get_variable(config[CONF_ID])
