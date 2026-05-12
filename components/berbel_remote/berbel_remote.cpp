@@ -44,6 +44,24 @@ static const ble_uuid128_t CHR_BUTTON_UUID = BLE_UUID128_INIT(
     0x6c, 0x65, 0x62, 0x72, 0x65, 0x62, 0x43, 0x80,
     0x53, 0x40, 0x45, 0x57, 0x02, 0xf0, 0x04, 0xf0);
 
+// 16-bit UUIDs as real objects (NimBLE's BLE_UUID16_DECLARE macro
+// takes the address of a compound literal -- legal in C, but C++ treats
+// that as an rvalue and refuses, so we define them out-of-line).
+static const ble_uuid16_t U_DIS = BLE_UUID16_INIT(0x180A);
+static const ble_uuid16_t U_BAS = BLE_UUID16_INIT(0x180F);
+static const ble_uuid16_t U_HID = BLE_UUID16_INIT(0x1812);
+static const ble_uuid16_t U_MANUFACTURER = BLE_UUID16_INIT(0x2A29);
+static const ble_uuid16_t U_PNP_ID = BLE_UUID16_INIT(0x2A50);
+static const ble_uuid16_t U_BATTERY_LEVEL = BLE_UUID16_INIT(0x2A19);
+static const ble_uuid16_t U_HID_INFO = BLE_UUID16_INIT(0x2A4A);
+static const ble_uuid16_t U_REPORT_MAP = BLE_UUID16_INIT(0x2A4B);
+static const ble_uuid16_t U_REPORT = BLE_UUID16_INIT(0x2A4D);
+static const ble_uuid16_t U_PROTOCOL_MODE = BLE_UUID16_INIT(0x2A4E);
+static const ble_uuid16_t U_HID_CONTROL_POINT = BLE_UUID16_INIT(0x2A4C);
+static const ble_uuid16_t U_REPORT_REFERENCE = BLE_UUID16_INIT(0x2908);
+
+#define UUID16_PTR(name) (reinterpret_cast<const ble_uuid_t *>(&(name)))
+
 // -- Static characteristic payloads --
 static const char DIS_MANUFACTURER[] = "Texas Instruments";
 // PnP ID: vendor source SIG (0x01), vendor 0x000D, product 0x0000, version 0x0010
@@ -99,7 +117,7 @@ static uint16_t s_battery_val_handle = 0;
 
 static const struct ble_gatt_dsc_def s_hid_report_descriptors[] = {
     {
-        .uuid = BLE_UUID16_DECLARE(0x2908),  // Report Reference
+        .uuid = UUID16_PTR(U_REPORT_REFERENCE),
         .att_flags = BLE_ATT_F_READ,
         .access_cb = berbel_dsc_report_ref_cb,
         .arg = const_cast<void *>(static_cast<const void *>(&BUF_HID_REPORT_REF)),
@@ -109,13 +127,13 @@ static const struct ble_gatt_dsc_def s_hid_report_descriptors[] = {
 
 static const struct ble_gatt_chr_def s_dis_chrs[] = {
     {
-        .uuid = BLE_UUID16_DECLARE(0x2A29),  // Manufacturer Name
+        .uuid = UUID16_PTR(U_MANUFACTURER),
         .access_cb = berbel_static_read_cb,
         .arg = const_cast<void *>(static_cast<const void *>(&BUF_MANUFACTURER)),
         .flags = BLE_GATT_CHR_F_READ,
     },
     {
-        .uuid = BLE_UUID16_DECLARE(0x2A50),  // PnP ID
+        .uuid = UUID16_PTR(U_PNP_ID),
         .access_cb = berbel_static_read_cb,
         .arg = const_cast<void *>(static_cast<const void *>(&BUF_PNP_ID)),
         .flags = BLE_GATT_CHR_F_READ,
@@ -125,7 +143,7 @@ static const struct ble_gatt_chr_def s_dis_chrs[] = {
 
 static const struct ble_gatt_chr_def s_bas_chrs[] = {
     {
-        .uuid = BLE_UUID16_DECLARE(0x2A19),  // Battery Level
+        .uuid = UUID16_PTR(U_BATTERY_LEVEL),
         .access_cb = berbel_battery_cb,
         .flags = BLE_GATT_CHR_F_READ | BLE_GATT_CHR_F_NOTIFY,
         .val_handle = &s_battery_val_handle,
@@ -135,31 +153,31 @@ static const struct ble_gatt_chr_def s_bas_chrs[] = {
 
 static const struct ble_gatt_chr_def s_hid_chrs[] = {
     {
-        .uuid = BLE_UUID16_DECLARE(0x2A4A),  // HID Information
+        .uuid = UUID16_PTR(U_HID_INFO),
         .access_cb = berbel_static_read_cb,
         .arg = const_cast<void *>(static_cast<const void *>(&BUF_HID_INFO)),
         .flags = BLE_GATT_CHR_F_READ,
     },
     {
-        .uuid = BLE_UUID16_DECLARE(0x2A4B),  // Report Map
+        .uuid = UUID16_PTR(U_REPORT_MAP),
         .access_cb = berbel_static_read_cb,
         .arg = const_cast<void *>(static_cast<const void *>(&BUF_HID_REPORT_MAP)),
         .flags = BLE_GATT_CHR_F_READ,
     },
     {
-        .uuid = BLE_UUID16_DECLARE(0x2A4D),  // Report
+        .uuid = UUID16_PTR(U_REPORT),
         .access_cb = berbel_static_read_cb,
         .arg = const_cast<void *>(static_cast<const void *>(&BUF_HID_REPORT_VALUE)),
         .descriptors = const_cast<struct ble_gatt_dsc_def *>(s_hid_report_descriptors),
         .flags = BLE_GATT_CHR_F_READ | BLE_GATT_CHR_F_NOTIFY,
     },
     {
-        .uuid = BLE_UUID16_DECLARE(0x2A4E),  // Protocol Mode
+        .uuid = UUID16_PTR(U_PROTOCOL_MODE),
         .access_cb = berbel_protocol_mode_cb,
         .flags = BLE_GATT_CHR_F_READ | BLE_GATT_CHR_F_WRITE_NO_RSP,
     },
     {
-        .uuid = BLE_UUID16_DECLARE(0x2A4C),  // HID Control Point
+        .uuid = UUID16_PTR(U_HID_CONTROL_POINT),
         .access_cb = berbel_protocol_mode_cb,
         .flags = BLE_GATT_CHR_F_WRITE_NO_RSP,
     },
@@ -187,17 +205,17 @@ static const struct ble_gatt_chr_def s_berbel_chrs[] = {
 static const struct ble_gatt_svc_def s_services[] = {
     {
         .type = BLE_GATT_SVC_TYPE_PRIMARY,
-        .uuid = BLE_UUID16_DECLARE(0x180A),  // Device Information
+        .uuid = UUID16_PTR(U_DIS),
         .characteristics = s_dis_chrs,
     },
     {
         .type = BLE_GATT_SVC_TYPE_PRIMARY,
-        .uuid = BLE_UUID16_DECLARE(0x180F),  // Battery
+        .uuid = UUID16_PTR(U_BAS),
         .characteristics = s_bas_chrs,
     },
     {
         .type = BLE_GATT_SVC_TYPE_PRIMARY,
-        .uuid = BLE_UUID16_DECLARE(0x1812),  // HID
+        .uuid = UUID16_PTR(U_HID),
         .characteristics = s_hid_chrs,
     },
     {
