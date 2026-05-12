@@ -136,7 +136,10 @@ async def to_code(config):
     esp32.add_idf_sdkconfig_option("CONFIG_BT_NIMBLE_ROLE_PERIPHERAL", True)
     esp32.add_idf_sdkconfig_option("CONFIG_BT_NIMBLE_ROLE_BROADCASTER", True)
     esp32.add_idf_sdkconfig_option("CONFIG_BT_NIMBLE_SM_LEGACY", True)
-    esp32.add_idf_sdkconfig_option("CONFIG_BT_NIMBLE_SM_SC", False)
+    # Keep SC compiled in to satisfy ble_sm_deinit() (it unconditionally
+    # calls ble_sm_sc_deinit()). We disable it at runtime via
+    # ble_hs_cfg.sm_sc = 0 so pairing stays legacy Just-Works.
+    esp32.add_idf_sdkconfig_option("CONFIG_BT_NIMBLE_SM_SC", True)
     esp32.add_idf_sdkconfig_option("CONFIG_BT_NIMBLE_NVS_PERSIST", True)
     esp32.add_idf_sdkconfig_option("CONFIG_BT_NIMBLE_MAX_CONNECTIONS", 1)
 
