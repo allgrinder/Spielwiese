@@ -68,8 +68,9 @@ static const char DIS_MANUFACTURER[] = "Texas Instruments";
 static const uint8_t DIS_PNP_ID[7] = {0x01, 0x0D, 0x00, 0x00, 0x00, 0x10, 0x00};
 // Battery level (the original firmware reports a fixed 90 %).
 static uint8_t BATTERY_LEVEL = 90;
-// HID Information: bcdHID 1.11, country 0, flags = RemoteWake+NormallyConnectable.
-static const uint8_t HID_INFO[4] = {0x11, 0x01, 0x00, 0x03};
+// HID Information: bcdHID 1.11, country 0, flags = RemoteWake.
+// Match the original firmware byte-for-byte; the hood may filter on this.
+static const uint8_t HID_INFO[4] = {0x11, 0x01, 0x00, 0x01};
 // Minimal Consumer-Control HID report map (21 bytes).
 static const uint8_t HID_REPORT_MAP[] = {
     0x05, 0x0C, 0x09, 0x01, 0xA1, 0x01, 0x85, 0x01, 0x09, 0xE0,
@@ -151,12 +152,25 @@ static const struct ble_gatt_chr_def s_bas_chrs[] = {
     {0},
 };
 
+// Characteristic order matches the original firmware verbatim (the hood
+// may cache handles, so changing the order can break re-connection):
+//   HID Info -> Control Point -> Protocol Mode -> Report Map -> Report.
 static const struct ble_gatt_chr_def s_hid_chrs[] = {
     {
         .uuid = UUID16_PTR(U_HID_INFO),
         .access_cb = berbel_static_read_cb,
         .arg = const_cast<void *>(static_cast<const void *>(&BUF_HID_INFO)),
         .flags = BLE_GATT_CHR_F_READ,
+    },
+    {
+        .uuid = UUID16_PTR(U_HID_CONTROL_POINT),
+        .access_cb = berbel_protocol_mode_cb,
+        .flags = BLE_GATT_CHR_F_WRITE_NO_RSP,
+    },
+    {
+        .uuid = UUID16_PTR(U_PROTOCOL_MODE),
+        .access_cb = berbel_protocol_mode_cb,
+        .flags = BLE_GATT_CHR_F_READ | BLE_GATT_CHR_F_WRITE_NO_RSP,
     },
     {
         .uuid = UUID16_PTR(U_REPORT_MAP),
@@ -171,33 +185,27 @@ static const struct ble_gatt_chr_def s_hid_chrs[] = {
         .descriptors = const_cast<struct ble_gatt_dsc_def *>(s_hid_report_descriptors),
         .flags = BLE_GATT_CHR_F_READ | BLE_GATT_CHR_F_NOTIFY,
     },
-    {
-        .uuid = UUID16_PTR(U_PROTOCOL_MODE),
-        .access_cb = berbel_protocol_mode_cb,
-        .flags = BLE_GATT_CHR_F_READ | BLE_GATT_CHR_F_WRITE_NO_RSP,
-    },
-    {
-        .uuid = UUID16_PTR(U_HID_CONTROL_POINT),
-        .access_cb = berbel_protocol_mode_cb,
-        .flags = BLE_GATT_CHR_F_WRITE_NO_RSP,
-    },
     {0},
 };
 
+// Order matches the original firmware: notify char (f004f002) first,
+// write char (f004f001) second. No encryption requirement here -- the
+// hood may probe these before bonding completes.
 static const struct ble_gatt_chr_def s_berbel_chrs[] = {
     {
-        .uuid = reinterpret_cast<const ble_uuid_t *>(&CHR_STATUS_UUID),
-        .access_cb = berbel_status_cb,
-        .flags = BLE_GATT_CHR_F_WRITE | BLE_GATT_CHR_F_NOTIFY |
-                 BLE_GATT_CHR_F_READ_ENC | BLE_GATT_CHR_F_WRITE_ENC,
-        .val_handle = &s_status_val_handle,
-    },
-    {
+        // Button (remote -> hood): READ + NOTIFY + WRITE_NO_RSP.
         .uuid = reinterpret_cast<const ble_uuid_t *>(&CHR_BUTTON_UUID),
         .access_cb = berbel_button_cb,
-        .flags = BLE_GATT_CHR_F_NOTIFY | BLE_GATT_CHR_F_READ |
-                 BLE_GATT_CHR_F_READ_ENC,
+        .flags = BLE_GATT_CHR_F_READ | BLE_GATT_CHR_F_NOTIFY |
+                 BLE_GATT_CHR_F_WRITE_NO_RSP,
         .val_handle = &s_button_val_handle,
+    },
+    {
+        // Status (hood -> remote): READ + WRITE_NO_RSP.
+        .uuid = reinterpret_cast<const ble_uuid_t *>(&CHR_STATUS_UUID),
+        .access_cb = berbel_status_cb,
+        .flags = BLE_GATT_CHR_F_READ | BLE_GATT_CHR_F_WRITE_NO_RSP,
+        .val_handle = &s_status_val_handle,
     },
     {0},
 };
@@ -280,18 +288,31 @@ static int berbel_status_cb(uint16_t conn_handle, uint16_t,
     }
     return 0;
   }
+  if (ctxt->op == BLE_GATT_ACCESS_OP_READ_CHR) {
+    // Echo back the last known raw status; the original behaves similarly.
+    static const uint8_t zero[9] = {0};
+    const uint8_t *src = (g_instance != nullptr) ? g_instance->status().raw : zero;
+    return os_mbuf_append(ctxt->om, src, 9) == 0
+               ? 0
+               : BLE_ATT_ERR_INSUFFICIENT_RES;
+  }
   return BLE_ATT_ERR_UNLIKELY;
 }
 
 static int berbel_button_cb(uint16_t, uint16_t,
                             struct ble_gatt_access_ctxt *ctxt, void *) {
   // The button characteristic does not have a meaningful read payload;
-  // we expose READ to keep some central stacks happy.
+  // we expose READ to keep some central stacks happy and accept writes
+  // (without acting on them) because the original firmware advertises
+  // WRITE_NR on this characteristic too.
   if (ctxt->op == BLE_GATT_ACCESS_OP_READ_CHR) {
     uint8_t zero[2] = {0, 0};
     return os_mbuf_append(ctxt->om, zero, 2) == 0
                ? 0
                : BLE_ATT_ERR_INSUFFICIENT_RES;
+  }
+  if (ctxt->op == BLE_GATT_ACCESS_OP_WRITE_CHR) {
+    return 0;
   }
   return BLE_ATT_ERR_UNLIKELY;
 }
@@ -415,7 +436,8 @@ void BerbelRemote::start_nimble_() {
     this->mark_failed();
     return;
   }
-  ble_svc_gap_device_name_set("Berbel");
+  // Empty device name -- the hood's filter must not see one.
+  ble_svc_gap_device_name_set("");
 
   nimble_port_freertos_init(berbel_host_task);
   ESP_LOGCONFIG(TAG, "NimBLE host started");
@@ -423,12 +445,15 @@ void BerbelRemote::start_nimble_() {
 
 void BerbelRemote::start_advertising() {
   // Manually crafted AD payload: Flags + Service Data (128-bit) with the
-  // hood's expected UUID and the ACTIVE state byte.
+  // marker UUID the hood scans for, and the ACTIVE state byte. Note that
+  // the *advertised* UUID is f000f000-5745-4053-8043-62657262656c, which
+  // is NOT the same as the GATT service UUID (f004f000-...). The hood
+  // uses the former purely as a discovery marker.
   static const uint8_t adv_data[] = {
       0x02, 0x01, 0x05,  // Flags: LE General Discoverable, BR/EDR not supp.
       0x12, 0x21,        // length=0x12, type=Service Data 128-bit
       0x6c, 0x65, 0x62, 0x72, 0x65, 0x62, 0x43, 0x80,
-      0x53, 0x40, 0x45, 0x57, 0x00, 0xf0, 0x04, 0xf0,
+      0x53, 0x40, 0x45, 0x57, 0x00, 0xf0, 0x00, 0xf0,
       0x01               // ACTIVE
   };
 
