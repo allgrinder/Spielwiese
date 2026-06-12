@@ -21,6 +21,12 @@
 #include "services/gap/ble_svc_gap.h"
 #include "services/gatt/ble_svc_gatt.h"
 
+// NVS-backed bond store. ESP-IDF compiles ble_store_config.c, but unlike
+// NimBLE-Arduino (where NimBLEDevice::init() wires it up automatically) we
+// must call ble_store_config_init() ourselves -- otherwise the stack has no
+// place to persist the LTK and bonding (which the hood requires) fails.
+extern "C" void ble_store_config_init(void);
+
 namespace esphome {
 namespace berbel_remote {
 
@@ -438,6 +444,9 @@ void BerbelRemote::start_nimble_() {
   }
   // Empty device name -- the hood's filter must not see one.
   ble_svc_gap_device_name_set("");
+
+  // Wire up the NVS bond store so the LTK can be persisted during bonding.
+  ble_store_config_init();
 
   nimble_port_freertos_init(berbel_host_task);
   ESP_LOGCONFIG(TAG, "NimBLE host started");
