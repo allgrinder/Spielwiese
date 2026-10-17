@@ -48,8 +48,15 @@ external_components:
       type: git
       url: https://github.com/allgrinder/Spielwiese
       ref: claude/esphome-berbel-remote-C0XhC
+    refresh: 0s          # always pull the latest commit (see note below)
     components: [berbel_remote]
 ```
+
+> **Note on `refresh: 0s`** – ESPHome caches `git` external components for
+> one day by default, so while the branch is still moving a rebuild may
+> silently reuse the previously fetched commit. `refresh: 0s` forces a
+> fresh fetch on every build. Once the work is pinned to a tag or merged
+> and stable you can remove it.
 
 Then:
 

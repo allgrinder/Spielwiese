@@ -31,6 +31,10 @@ external_components:
       type: git
       url: https://github.com/allgrinder/Spielwiese
       ref: claude/esphome-berbel-remote-C0XhC
+    # ESPHome caches git sources for 1 day by default, so a moving branch
+    # may not be re-fetched between builds. refresh: 0s always pulls the
+    # latest commit. Drop it (or set a longer interval) once you pin a tag.
+    refresh: 0s
     components: [berbel_remote]
 
 logger:
