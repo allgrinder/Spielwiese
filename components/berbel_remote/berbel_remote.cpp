@@ -484,7 +484,7 @@ void BerbelRemote::start_advertising() {
   if (rc != 0 && rc != BLE_HS_EALREADY) {
     ESP_LOGW(TAG, "adv_start failed: %d", rc);
   } else {
-    ESP_LOGD(TAG, "Advertising started");
+    ESP_LOGI(TAG, "Advertising started (waiting for hood to connect)");
   }
 }
 
@@ -540,7 +540,16 @@ void BerbelRemote::loop() {
 
   const uint32_t now = millis();
 
-  // Send pending release 100 ms after the press.
+  // Periodic BLE-state heartbeat so the connection status is always visible
+  // in the (network) log, even though the first "Advertising started" line
+  // is emitted before the API client connects.
+  static uint32_t last_state_log = 0;
+  if (last_state_log == 0 || now - last_state_log >= 30000) {
+    last_state_log = now;
+    ESP_LOGI(TAG, "BLE state: %s",
+             is_connected() ? "connected to hood"
+                            : "advertising, waiting for hood to connect");
+  }
   if (waiting_release_ && static_cast<int32_t>(now - release_at_ms_) >= 0) {
     send_notification_(0x00, 0x00);
     waiting_release_ = false;
